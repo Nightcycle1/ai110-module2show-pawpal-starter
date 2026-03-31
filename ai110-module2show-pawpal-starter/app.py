@@ -7,7 +7,11 @@ from owner import Owner
 from pet import Pet
 from scheduler import Scheduler
 
-
+def format_time(hour_decimal):
+    """Convert decimal hour to HH:MM format"""
+    hour = int(hour_decimal)
+    minute = int((hour_decimal % 1) * 60)
+    return f"{hour:02d}:{minute:02d}"
 
 # Tab information
 st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
@@ -124,7 +128,6 @@ st.caption("Add a few tasks. In your final version, these should feed into your 
     
 
 
-# MODIFIED: Expanded to 4 columns instead of 3
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
@@ -155,23 +158,34 @@ with col6:
     frequency = None if frequency == "None" else frequency
 
 
+# In the add task section, add explicit instance creation:
 if st.button("Add task"):
     if not task_title:
         st.error("Please enter a task title")
     else:
-        # MODIFIED: Create task with all new attributes
-        new_task = Task(
-            title=task_title,
-            duration_minutes=int(duration),
-            priority=priority,
-            task_type=task_type,
-            fixed_time=fixed_time,
-            required=required,
-            frequency=frequency
-        )
-        st.session_state.pet.add_task(new_task)
-        st.success(f"Added: {task_title}")
-        st.rerun()
+        try:
+            # Create task instance
+            new_task_instance = Task(
+                title=task_title,
+                duration_minutes=int(duration),
+                priority=priority,
+                task_type=task_type,
+                fixed_time=fixed_time,
+                required=required,
+                frequency=frequency
+            )
+            
+            # Verify it's an instance
+            print(f"Task type: {type(new_task_instance)}")  # Should be <class 'task.Task'>
+            print(f"Is instance: {isinstance(new_task_instance, Task)}")  # Should be True
+            
+            st.session_state.pet.add_task(new_task_instance)
+            st.success(f"Added: {task_title}")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Error: {e}")
+            import traceback
+            st.code(traceback.format_exc())
 
 
 # Display current tasks
@@ -211,6 +225,37 @@ else:
 # Divider
 st.divider()
 
+# Add a conflict check button before generating schedule
+st.subheader("🔍 Check for Conflicts")
+if st.button("Check for conflicts"):
+    fixed_tasks = st.session_state.pet.get_fixed_time_tasks()
+    fixed_times = {}
+    
+    # Group tasks by fixed time
+    for task in fixed_tasks:
+        if task.fixed_time not in fixed_times:
+            fixed_times[task.fixed_time] = []
+        fixed_times[task.fixed_time].append(task)
+    
+    # Display conflicts
+    conflicts_found = False
+    for time, tasks in fixed_times.items():
+        if len(tasks) > 1:
+            conflicts_found = True
+            st.error(f"⚠️ Conflict at {time}:00")
+            for task in tasks:
+                st.markdown(f"   - {task.title} (priority: {task.priority_str})")
+    
+    if not conflicts_found:
+        st.success("✅ No conflicts detected in fixed-time tasks")
+    
+    # Check total time
+    total_minutes = st.session_state.pet.get_total_task_time()
+    available_minutes = st.session_state.owner.get_available_minutes()
+    
+    if total_minutes > available_minutes:
+        st.warning(f"⚠️ Total task time ({total_minutes} min) exceeds available time ({available_minutes} min) by {total_minutes - available_minutes} min")
+
 # Build Schedule Section
 st.subheader("Build Schedule")
 st.caption("This button should call your scheduling logic once you implement it.")
@@ -225,39 +270,96 @@ if st.button("Generate schedule"):
         )
         plan = scheduler.generate_plan()
 
+        # ===== ENHANCED CONFLICT WARNINGS =====
+        # Check for fixed-time conflicts within this pet
+        fixed_tasks = st.session_state.pet.get_fixed_time_tasks()
+        fixed_times = [task.fixed_time for task in fixed_tasks]
+        duplicate_times = [time for time in set(fixed_times) if fixed_times.count(time) > 1]
+        
+        if duplicate_times:
+            st.error("⚠️ **CONFLICT DETECTED**")
+            st.markdown(f"Multiple tasks scheduled at the same time: **{', '.join(str(t) + ':00' for t in duplicate_times)}**")
+            st.markdown("Only the highest priority task at each time will be scheduled.")
+        
         # Feasibility warning
         if not plan["feasibility"]["feasible"]:
             st.warning(
-                f"Total task time ({plan['feasibility']['total_minutes']} min) exceeds "
+                f"⚠️ Total task time ({plan['feasibility']['total_minutes']} min) exceeds "
                 f"available time ({plan['feasibility']['available_minutes']} min) by "
                 f"{plan['feasibility']['excess']} min. Some tasks were skipped."
             )
+        
+        # Check for cross-pet conflicts (if you have multiple pets)
+        # This would need to be expanded if you support multiple pets
 
-        # Display scheduled tasks
-        st.subheader("Today's Schedule")
+        # Display scheduled tasks with visual indicators
+        st.subheader("📅 Today's Schedule")
         if plan["scheduled"]:
             for entry in plan["scheduled"]:
-                st.markdown(f"**{entry}**")
+                # Color code by priority
+                priority_color = {
+                    "high": "🔴",
+                    "medium": "🟡", 
+                    "low": "🟢"
+                }.get(entry.task.priority_str, "⚪")
+                
+                # Show required badge
+                required_badge = "⭐ **REQUIRED** " if entry.task.required else ""
+                
+                # Format times using the helper function
+                start_str = format_time(entry.start_time)
+                end_str = format_time(entry.end_time)
+                
+                st.markdown(
+                    f"{priority_color} **{start_str} - {end_str}** | "
+                    f"{entry.task.title} ({entry.task.duration_minutes} min) {required_badge}"
+                )
+                
+                # Show reasoning in smaller text
+                st.caption(f"💡 {entry.reasoning}")
+                st.divider()
         else:
             st.info("No tasks could be scheduled.")
-
-        # Display unscheduled tasks if any
+            
+        # Display unscheduled tasks with conflict explanations
         if plan["unscheduled"]:
-            st.subheader("Could Not Schedule")
+            st.subheader("❌ Could Not Schedule")
             for task in plan["unscheduled"]:
-                st.markdown(f"- {task.title} ({task.duration_minutes} min, priority: {task.priority_str})")
+                # Check if this task conflicted with something
+                conflict_reason = "Time conflict with higher priority task"
+                if task.is_fixed():
+                    conflict_reason = f"Fixed time {task.fixed_time}:00 already occupied"
+                elif plan["feasibility"]["excess"] > 0:
+                    conflict_reason = "Not enough time in schedule"
+                    
+                st.markdown(
+                    f"• **{task.title}** ({task.duration_minutes} min, priority: {task.priority_str}) "
+                    f"- *{conflict_reason}*"
+                )
+        
+        # Display reasoning in an expander
+        with st.expander("📋 View detailed reasoning"):
+            for i, reason in enumerate(plan["reasoning"], 1):
+                st.markdown(f"{i}. {reason}")
 
-        # Display reasoning
-        st.subheader("Reasoning")
-        for reason in plan["reasoning"]:
-            st.markdown(f"• {reason}")
-
-        # Summary stats
+        # Summary stats with visual indicators
         summary = scheduler.get_schedule_summary()
+        
+        # Color code the summary based on remaining time
+        remaining_minutes = summary['minutes_remaining']
+        if remaining_minutes < 0:
+            status_color = "🔴"
+        elif remaining_minutes < 60:
+            status_color = "🟡"
+        else:
+            status_color = "🟢"
+            
         st.info(
-            f"{summary['num_tasks_scheduled']} tasks scheduled | "
-            f"{summary['total_minutes_scheduled']} min used | "
-            f"{summary['minutes_remaining']} min remaining"
+            f"{status_color} **Schedule Summary**  \n"
+            f"📋 {summary['num_tasks_scheduled']} tasks scheduled  \n"
+            f"⏱️ {summary['total_minutes_scheduled']} min used  \n"
+            f"✨ {summary['minutes_remaining']} min remaining  \n"
+            f"⏰ Available: {summary['available_minutes']} min total"
         )
 
     st.markdown(

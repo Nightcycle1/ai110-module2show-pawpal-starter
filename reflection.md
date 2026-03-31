@@ -38,14 +38,36 @@ instead of going with the instruction to create pawpal_system.py which would con
 - What constraints does your scheduler consider (for example: time, priority, preferences)?
 - How did you decide which constraints mattered most?
 
+My scheduler considers multiple constraints in this order:
 
+Fixed-time constraints: Tasks that must happen at a specific hour (like medication at 8am) are scheduled first with no flexibility
+
+Owner availability: All tasks must fit within the owner's available hours window
+
+Priority: High-priority tasks (priority_value=5) are scheduled before medium (3) and low (1)
+
+Required vs Optional: Required tasks are scheduled before optional tasks of the same priority
+
+Duration: When priority is tied, longer tasks are scheduled first to place the most time-consuming tasks earlier
+
+
+
+I decided constraints mattered in this order because:
+
+Fixed tasks have no flexibility - they must be placed exactly, so they go first
+
+High-priority tasks are most important for pet care (medication > playtime)
+
+Required tasks are mandatory - they must be scheduled even if optional tasks can't fit
+
+Longer tasks first improves packing efficiency (like fitting larger items in a box first)
 
 **b. Tradeoffs**
 
 - Describe one tradeoff your scheduler makes.
 - Why is that tradeoff reasonable for this scenario?
 
-AI Suggest to add an import to cut down on lines for a function. I decided these changes should not be implemented as I preferred to see how it works instead of hiding some parts of code away. 
+AI assistant suggested to add an import to cut down on lines for a function. I decided these changes should not be implemented as I preferred to see how it works instead of hiding some parts of the code away. 
 
 ---
 
@@ -54,12 +76,20 @@ AI Suggest to add an import to cut down on lines for a function. I decided these
 **a. How you used AI**
 
 - How did you use AI tools during this project (for example: design brainstorming, debugging, refactoring)?
+Inline Chat: When a test was failing, I could highlight the test and ask "Why is this test failing?" Copilot would analyze the error and suggest fixes
+Generate tests: I used the "Generate tests" smart action to create initial test stubs, which I then refined
+
 - What kinds of prompts or questions were most helpful?
+"Can you code a mermaid UML based on my files?"
+"What are the most important edge cases to test for a pet scheduler with sorting and recurring tasks?"
+"Why is this test failing, and is the bug in my test code or my logic?"
 
 **b. Judgment and verification**
 
 - Describe one moment where you did not accept an AI suggestion as-is.
 - How did you evaluate or verify what the AI suggested?
+
+One moment would be when i rejected adding a import based change. Reason why I rejected was it was easier for me read and didn't really change anything that would benefit the user.
 
 ---
 
@@ -70,10 +100,24 @@ AI Suggest to add an import to cut down on lines for a function. I decided these
 - What behaviors did you test?
 - Why were these tests important?
 
+I created a comprehensive test suite covering:
+
+Test Category	Specific Behaviors Tested
+Task Management	Marking tasks complete, adding/removing tasks, task count updates
+Aggregation	Total duration calculation, counting tasks by priority
+Sorting	Chronological order of scheduled tasks, priority-based sorting
+Recurrence	Daily task creates next occurrence, one-off tasks don't recur
+Conflict Detection	Duplicate fixed times, cross-pet conflicts, priority-based resolution
+Time Slot Finding	Finding earliest available slots, respecting occupied blocks
+
 **b. Confidence**
 
 - How confident are you that your scheduler works correctly?
 - What edge cases would you test next if you had more time?
+
+3/5
+
+I've ran out of time to properly check everything. 
 
 ---
 
@@ -83,10 +127,19 @@ AI Suggest to add an import to cut down on lines for a function. I decided these
 
 - What part of this project are you most satisfied with?
 
+I guess I am satisfied that I actually spent quite a lot of time on this trying to find a balance.
+
 **b. What you would improve**
 
 - If you had another iteration, what would you improve or redesign?
 
+I would add persistent storage.
+Support multiple pets.
+Add task editing.
+And maybe a calendar view.
+
 **c. Key takeaway**
 
 - What is one important thing you learned about designing systems or working with AI on this project?
+
+AI tools can amplifiy your capabilities, but not replcae architectural judgment. 
