@@ -41,3 +41,13 @@ pip install -r requirements.txt
 5. Add tests to verify key behaviors.
 6. Connect your logic to the Streamlit UI in `app.py`.
 7. Refine UML so it matches what you actually built.
+
+## Smarter Scheduling
+- **Task Management**: Create, edit, and delete care tasks with customizable duration, priority, and recurrence
+- **Smart Scheduling**: Automatically generates daily schedules respecting owner availability and task priorities
+- **Priority-Based Planning**: High-priority and required tasks are scheduled first, with clear reasoning
+- **Fixed & Flexible Tasks**: Handle both time-sensitive tasks (medication at 8am) and flexible activities (walks, playtime)
+- **Recurring Tasks**: Support for daily and weekly recurring tasks (medication, feeding schedules)
+- **Multi-Pet Support**: Manage schedules for multiple pets with conflict detection
+- **Detailed Explanations**: Every scheduling decision includes human-readable reasoning
+- **Complete Status Tracking**: Mark tasks as complete, automatically queue next occurrences for recurring tasks

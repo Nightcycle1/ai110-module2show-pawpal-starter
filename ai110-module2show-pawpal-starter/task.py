@@ -3,9 +3,12 @@ class Task:
     PRIORITY_MAP = {"low": 1, "medium": 3, "high": 5}
     REVERSE_PRIORITY_MAP = {1: "low", 3: "medium", 5: "high"} # To convert numeric back to string
     
-    def __init__(self, title: str = "", duration_minutes: int = 20, 
-                 priority: str = "medium", task_type: str = "flexible", 
-                 fixed_time: int = None, required: bool = False):
+    VALID_FREQUENCIES = {None, "daily", "weekly"}
+
+    def __init__(self, title: str = "", duration_minutes: int = 20,
+                 priority: str = "medium", task_type: str = "flexible",
+                 fixed_time: int = None, required: bool = False,
+                 frequency: str = None):
         """
         Initialize task with attributes matching UI inputs
         Args:
@@ -15,22 +18,48 @@ class Task:
             task_type: "flexible" or "fixed"
             fixed_time: Hour (0-23) if fixed
             required: Whether task is mandatory
+            frequency: Recurrence — None (one-off), "daily", or "weekly"
         """
-        
-        
         self.title = title
         self.duration_minutes = duration_minutes
+        if priority not in self.PRIORITY_MAP:
+            raise ValueError(f"Invalid priority: '{priority}'. Must be one of {list(self.PRIORITY_MAP.keys())}")
         self.priority_str = priority
-        self.priority_value = self.PRIORITY_MAP.get(priority, 3)
+        self.priority_value = self.PRIORITY_MAP[priority]
         self.task_type = task_type
         self.fixed_time = fixed_time
         self.required = required
         self.scheduled_time = None
         self.completed = False  # Tracks whether the task has been marked done
+        if frequency not in self.VALID_FREQUENCIES:
+            raise ValueError(f"Invalid frequency: '{frequency}'. Must be one of {self.VALID_FREQUENCIES}")
+        self.frequency = frequency  # None = one-off, "daily" or "weekly" = recurring
 
     def mark_complete(self) -> None:
         """Mark this task as completed"""
         self.completed = True
+
+    def next_occurrence(self) -> "Task":
+        """
+        Create a fresh, uncompleted copy of this task for the next occurrence.
+        Only meaningful when frequency is "daily" or "weekly".
+
+        Returns a new Task with the same attributes but completed=False and
+        scheduled_time=None — ready to be added back to the pet and scheduled again.
+        Raises ValueError if called on a one-off task (frequency=None).
+        """
+        if self.frequency is None:
+            raise ValueError(f"'{self.title}' is a one-off task and has no next occurrence.")
+
+        return Task(
+            title=self.title,
+            duration_minutes=self.duration_minutes,
+            priority=self.priority_str,
+            task_type=self.task_type,
+            fixed_time=self.fixed_time,
+            required=self.required,
+            frequency=self.frequency
+        )
 
     def get_priority_numeric(self) -> int:
         """Convert priority string to numeric value"""
@@ -62,7 +91,7 @@ class Task:
         """
         
         if end_hour is None:
-            end_hour = start_hour + (self.duration_minutes/60)
+            end_hour = start_hour + (self.duration_minutes / 60.0)
             
         if start_hour < owner_start or end_hour > owner_end:
             return False
@@ -109,9 +138,11 @@ class Task:
         
         if task_type is not None:
             self.task_type = task_type
-            
             if task_type == "flexible":
                 self.fixed_time = None
+            elif task_type == "fixed" and self.fixed_time is None and fixed_time is None:
+                raise ValueError("Cannot set task_type to 'fixed' without providing a fixed_time")
+
             
         if fixed_time is not None:
             
@@ -129,11 +160,14 @@ class Task:
             "title": self.title,
             "duration_minutes": self.duration_minutes,
             "priority": self.priority_str,
-            "task_type" : self.task_type,
+            "task_type": self.task_type,
             "fixed_time": self.fixed_time,
             "required": self.required,
-            "scheduled_time": self.scheduled_time
+            "scheduled_time": self.scheduled_time,
+            "completed": self.completed,
+            "frequency": self.frequency
         }
+
     
     
     @classmethod
@@ -145,12 +179,13 @@ class Task:
             priority=task_dict.get("priority", "medium"),
             task_type=task_dict.get("task_type", "flexible"),
             fixed_time=task_dict.get("fixed_time"),
-            required=task_dict.get("required", False)
+            required=task_dict.get("required", False),
+            frequency=task_dict.get("frequency", None)
         )
-        # Restore scheduled_time if exists
         task.scheduled_time = task_dict.get("scheduled_time")
-        
+        task.completed = task_dict.get("completed", False)
         return task
+
     
     
     def __str__(self) -> str:

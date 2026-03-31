@@ -38,10 +38,14 @@ instead of going with the instruction to create pawpal_system.py which would con
 - What constraints does your scheduler consider (for example: time, priority, preferences)?
 - How did you decide which constraints mattered most?
 
+
+
 **b. Tradeoffs**
 
 - Describe one tradeoff your scheduler makes.
 - Why is that tradeoff reasonable for this scenario?
+
+AI Suggest to add an import to cut down on lines for a function. I decided these changes should not be implemented as I preferred to see how it works instead of hiding some parts of code away. 
 
 ---
 

@@ -102,29 +102,31 @@ class Scheduler:
 
         # Try every 30-minute increment within the owner's window
         current = owner_start
+        
         while current + duration_hours <= owner_end:
+            # Calculate where this task would end if it started right now
             end = current + duration_hours
+            # Assume no conflict until proven otherwise
+            jumped = False
 
-            # Check if this slot overlaps with any already-scheduled block
-            overlap = False
+            # Check the candidate slot against every already-scheduled block
             for block_start, block_end in scheduled_blocks:
-                # Overlap exists if the new task starts before a block ends
-                # AND ends after a block starts
+                # Overlap condition: new task starts before a block ends AND ends after a block starts
+                # (standard interval overlap check)
                 if current < block_end and end > block_start:
-                    overlap = True
-                    # Jump to end of the conflicting block to avoid re-checking
+                    # Conflict found — jump past the conflicting block entirely
+                    # so we don't waste iterations checking times we know are taken
                     current = block_end
-                    break
+                    jumped = True
+                    break  # Re-check all blocks from the new position
 
-            if not overlap:
+            if not jumped:
+                # No conflict found with any existing block — this slot is free
                 return (current, end)
 
-            # If no jump happened inside the loop, advance by 30 min
-            if current == owner_start or current < owner_start:
-                current += 0.5
-            # (current was already updated inside loop if overlap found)
+        # Reached the end of the owner's available window with no valid slot
+        return None
 
-        return None  # No slot found
 
 
     def schedule_fixed_time_tasks(self, scheduled_blocks: list[tuple]) -> list[ScheduleEntry]:
@@ -257,6 +259,120 @@ class Scheduler:
         }
 
 
+    def mark_task_complete(self, task: Task) -> Task | None:
+        """
+        Mark a task as complete and automatically queue the next occurrence
+        if the task is recurring (frequency="daily" or "weekly").
+
+        @param task - The Task object to mark as done (must belong to this pet)
+
+        @return - The new Task instance added to the pet if recurring, else None.
+
+        How it works:
+          - Always calls task.mark_complete() to set completed=True
+          - If the task has a frequency, calls task.next_occurrence() to create
+            a fresh copy, then adds it to the pet so it appears in the next
+            call to generate_plan()
+          - One-off tasks (frequency=None) are simply marked done — nothing is queued
+        """
+        task.mark_complete()
+
+        if task.frequency is not None:
+            # Create a fresh uncompleted copy for the next cycle
+            next_task = task.next_occurrence()
+            self.pet.add_task(next_task)
+            self.reasoning_log.append(
+                f"'{task.title}' completed ({task.frequency} task) — "
+                f"next occurrence queued automatically."
+            )
+            return next_task
+
+        return None  # One-off task — nothing queued
+
+
+    def detect_conflicts(self, other_schedule: list = None) -> list[str]:
+        """
+        Lightweight conflict detection — returns warning strings instead of raising.
+
+        Checks two scenarios:
+          1. Within this scheduler's own schedule (same-pet self-overlap)
+          2. Against another scheduler's schedule (cross-pet overlap), if provided
+
+        @param other_schedule - Optional list of ScheduleEntry from a second Scheduler
+                                (e.g. a second pet's schedule sharing the same owner).
+                                Pass None to only check within this schedule.
+
+        @return - List of human-readable warning strings, one per conflict found.
+                  Empty list means no conflicts detected.
+
+        Strategy — pairwise interval overlap check:
+          For each pair of entries (A, B), a conflict exists when:
+              A.start_time < B.end_time  AND  A.end_time > B.start_time
+          This is the standard interval overlap condition. It's O(n²) but
+          lightweight for the small task counts typical in a daily pet schedule.
+        """
+        warnings = []
+
+        # Combine this schedule with the other (if provided) into one flat list,
+        # tagging each entry with a label so the warning message is readable
+        tagged = [(entry, self.pet.name) for entry in self.schedule]
+        if other_schedule:
+            # Infer the other pet's name from the first entry if possible
+            other_label = "Other pet"
+            if other_schedule and hasattr(other_schedule[0].task, "title"):
+                other_label = "Other pet"  # caller can pass pet name separately if needed
+            tagged += [(entry, other_label) for entry in other_schedule]
+
+        # Pairwise check — compare every entry against every later entry
+        for i in range(len(tagged)):
+            for j in range(i + 1, len(tagged)):
+                entry_a, label_a = tagged[i]
+                entry_b, label_b = tagged[j]
+
+                # Standard interval overlap: A starts before B ends AND A ends after B starts
+                if entry_a.start_time < entry_b.end_time and entry_a.end_time > entry_b.start_time:
+                    warnings.append(
+                        f"CONFLICT: '{entry_a.task.title}' ({label_a}, "
+                        f"{entry_a.start_time:.2f}-{entry_a.end_time:.2f}) overlaps with "
+                        f"'{entry_b.task.title}' ({label_b}, "
+                        f"{entry_b.start_time:.2f}-{entry_b.end_time:.2f})"
+                    )
+
+        return warnings
+
+
+    def filter_schedule(self, completed: bool = None, pet_name: str = None) -> list:
+        """
+        Filter the current schedule by completion status and/or pet name.
+
+        @param completed  - If True, return only completed tasks.
+                            If False, return only incomplete tasks.
+                            If None, completion status is not filtered.
+        @param pet_name   - If provided, only return entries whose pet matches
+                            this name (case-insensitive). Useful when extending
+                            to multi-pet schedules.
+
+        @return - Filtered list of ScheduleEntry objects matching all given criteria.
+
+        Example usage:
+            # All incomplete tasks for a specific pet
+            remaining = scheduler.filter_schedule(completed=False, pet_name="Mochi")
+        """
+        results = self.schedule
+
+        # Filter by completion status using a lambda on the task's completed flag
+        if completed is not None:
+            results = list(filter(lambda entry: entry.task.completed == completed, results))
+
+        # Filter by pet name — all entries belong to the same pet in this scheduler,
+        # so if the name doesn't match, no entries qualify
+        if pet_name is not None:
+            if self.pet.name.lower() != pet_name.lower():
+                results = []
+
+        return results
+
+
     def explain_plan(self) -> list[str]:
         """
         Return the reasoning log — one string per scheduling decision.
@@ -272,12 +388,15 @@ class Scheduler:
         """
         total_scheduled = sum(e.task.duration_minutes for e in self.schedule)
         total_unscheduled = sum(t.duration_minutes for t in self.unscheduled)
-
+        
+        # Was called twice
+        available = self.owner.get_available_minutes()
+        
         return {
             "total_minutes_scheduled": total_scheduled,
             "total_minutes_unscheduled": total_unscheduled,
             "num_tasks_scheduled": len(self.schedule),
             "num_tasks_unscheduled": len(self.unscheduled),
-            "available_minutes": self.owner.get_available_minutes(),
-            "minutes_remaining": self.owner.get_available_minutes() - total_scheduled
+            "available_minutes": available,
+            "minutes_remaining": available - total_scheduled
         }

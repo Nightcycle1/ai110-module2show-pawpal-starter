@@ -34,8 +34,8 @@ class Owner:
         # Validate hours
         if not (0 <= start <= 23):
             raise ValueError(f"Start hour must be between 0 and 23, got {start}")
-        if not (0 <= end <= 23):
-            raise ValueError(f"End hour must be between 0 and 23, got {end}")
+        if not (0 <= end <= 24): # end at midnight
+            raise ValueError(f"End hour must be between 0 and 24, got {end}")
         
         if start >= end:
             raise ValueError(f"Start hour ({start}) must be less than end hour ({end})")
@@ -71,26 +71,28 @@ class Owner:
     def get_available_time_slots(self, task_duration: int) -> list:
         """
         Generate available time slots for a task of given duration
-        
+
         @param task_duration: Duration in minutes
-        
-        @return - List of possible start hours (as integers) where task would fit
+
+        @return - List of possible start times (as floats, e.g. 8.5 = 8:30) where task would fit
         """
         available_slots = []
-        
-        # Edge case
+
+        # A zero or negative duration task has no valid slots
         if task_duration <= 0:
             return available_slots
-                
-        # Convert duration to hours for slot calculation
+
+        # Convert duration to hours to compare against the owner's hour-based window
         duration_hours = task_duration / 60.0
-        
-        # Check each possible start hour
-        for hour in range(self.available_hours_start, self.available_hours_end):
-            end_hour = hour + duration_hours
-            if end_hour <= self.available_hours_end:
-                available_slots.append(hour)
-        
+
+        # Use a float so we can step in 30-minute (0.5 hour) increments,
+        # matching the scheduler's granularity in find_time_slot()
+        current = float(self.available_hours_start)
+
+        while current + duration_hours <= self.available_hours_end:
+            available_slots.append(current)
+            current += 0.5  # 30-minute steps — consistent with scheduler's find_time_slot()
+
         return available_slots
     
     
@@ -157,10 +159,12 @@ class Owner:
         Returns:
             Dictionary with availability summary
         """
+        total_minutes = self.get_available_minutes()
+
         return {
             "name": self.name,
             "available_start": self.available_hours_start,
             "available_end": self.available_hours_end,
-            "total_minutes": self.get_available_minutes(),
-            "total_hours": self.get_available_minutes() / 60
+            "total_minutes": total_minutes,
+            "total_hours": total_minutes / 60
         }

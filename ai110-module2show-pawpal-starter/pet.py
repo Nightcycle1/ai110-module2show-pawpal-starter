@@ -238,13 +238,25 @@ class Pet:
     
     def get_summary(self) -> Dict[str, Any]:
         """Get summary of pet's care requirements"""
+        # Single pass over self.tasks instead of calling separate filter methods
+        # (each of which would loop tasks again independently)
+        total_time = fixed = required = high_priority = 0
+        for t in self.tasks:
+            total_time += t.duration_minutes
+            if t.is_fixed():
+                fixed += 1
+            if t.required:
+                required += 1
+            if t.is_high_priority():
+                high_priority += 1
+
         return {
             "name": self.name,
             "species": self.species,
             "age": self.age,
-            "total_tasks": self.get_task_count(),
-            "total_time_minutes": self.get_total_task_time(),
-            "fixed_tasks": len(self.get_fixed_time_tasks()),
-            "required_tasks": len(self.get_required_tasks()),
-            "high_priority_tasks": len([t for t in self.tasks if t.is_high_priority()])
+            "total_tasks": len(self.tasks),
+            "total_time_minutes": total_time,
+            "fixed_tasks": fixed,
+            "required_tasks": required,
+            "high_priority_tasks": high_priority
         }
