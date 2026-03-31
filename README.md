@@ -46,8 +46,8 @@ PawPal+ is an intelligent pet care scheduling assistant that helps busy pet owne
 
 ## 📸 Demo
 
-<a href="/images/pawpal_demo.png" target="_blank">
-  <img src="/images/pawpal_demo.png" alt="PawPal+ App Screenshot" width="100%"/>
+<a href="/images/demo.png" target="_blank">
+  <img src="/images/demo.png" alt="PawPal+ App Screenshot" width="100%"/>
 </a>
 
 *Screenshot of PawPal+ generating a daily schedule with conflict detection and reasoning*

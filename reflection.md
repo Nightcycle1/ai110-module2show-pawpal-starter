@@ -102,13 +102,14 @@ One moment would be when i rejected adding a import based change. Reason why I r
 
 I created a comprehensive test suite covering:
 
-Test Category	Specific Behaviors Tested
-Task Management	Marking tasks complete, adding/removing tasks, task count updates
-Aggregation	Total duration calculation, counting tasks by priority
-Sorting	Chronological order of scheduled tasks, priority-based sorting
-Recurrence	Daily task creates next occurrence, one-off tasks don't recur
-Conflict Detection	Duplicate fixed times, cross-pet conflicts, priority-based resolution
-Time Slot Finding	Finding earliest available slots, respecting occupied blocks
+| Test Category      | Specific Behaviors Tested                                             |
+| ------------------ | --------------------------------------------------------------------- |
+| Task Management    | Marking tasks complete, adding/removing tasks, task count updates     |
+| Aggregation        | Total duration calculation, counting tasks by priority                |
+| Sorting            | Chronological order of scheduled tasks, priority-based sorting        |
+| Recurrence         | Daily task creates next occurrence, one-off tasks don't recur         |
+| Conflict Detection | Duplicate fixed times, cross-pet conflicts, priority-based resolution |
+| Time Slot Finding  | Finding earliest available slots, respecting occupied blocks          |
 
 **b. Confidence**
 
@@ -142,4 +143,4 @@ And maybe a calendar view.
 
 - What is one important thing you learned about designing systems or working with AI on this project?
 
-AI tools can amplifiy your capabilities, but not replcae architectural judgment. 
+AI tools can amplify your capabilities, but not replace architectural judgment. 
